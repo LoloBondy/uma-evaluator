@@ -173,6 +173,12 @@ contract UMAEvaluator is IEvaluator {
             "UMAEvaluator: assertion already pending for this job"
         );
 
+        // M-01 fix: write a non-zero sentinel BEFORE any external call so that
+        // a re-entrant evaluate() for the same (jobContract, jobId) hits the
+        // duplicate guard above even while assertTruth() is on the call stack.
+        bytes32 sentinel = bytes32(uint256(1));
+        activeAssertion[jobContract][jobId] = sentinel;
+
         IOptimisticOracleV3 oo = IOptimisticOracleV3(OO_V3);
         IERC20 usdc            = IERC20(USDC);
 
@@ -205,11 +211,11 @@ contract UMAEvaluator is IEvaluator {
             bytes32(0)     // generic domain
         );
 
+        // Replace sentinel with the real assertionId now that we have it.
+        activeAssertion[jobContract][jobId] = assertionId;
+
         // Persist context so the callback can reconstruct job details.
         pendingAssertions[assertionId] = AssertionData(jobContract, jobId, bond);
-
-        // Record active assertion to block duplicates.
-        activeAssertion[jobContract][jobId] = assertionId;
 
         emit DisputeRaised(jobId, assertionId);
     }
@@ -256,9 +262,9 @@ contract UMAEvaluator is IEvaluator {
             }
 
             // Notify job contract: deliverable accepted.
-            // The returned bond (from OOv3 → this contract) sits in our USDC
-            // balance and can be reused as bond for the next evaluate() call.
-            job.complete(data.jobId, fee);
+            // H-01 fix: try/catch prevents a reverting job contract from orphaning
+            // assertion state when UMA absorbs this callback via its own try/catch.
+            try job.complete(data.jobId, fee) {} catch {}
         } else {
             // Assertion rejected — credit the returned bond to the job contract
             // address so it can be withdrawn.  OOv3 has already transferred
@@ -266,7 +272,8 @@ contract UMAEvaluator is IEvaluator {
             bondRefunds[data.jobContract] += data.bond;
 
             // Notify job contract: deliverable rejected; no fee charged.
-            job.reject(data.jobId);
+            // H-01 fix: same try/catch guard as the true path above.
+            try job.reject(data.jobId) {} catch {}
         }
 
         emit DisputeResolved(data.jobId, assertedTruthfully, fee);
@@ -278,7 +285,8 @@ contract UMAEvaluator is IEvaluator {
      *         and then fires assertionResolvedCallback() with the final verdict.
      *         Must exist to satisfy OOv3's full callback interface.
      */
-    function assertionDisputedCallback(bytes32 /* assertionId */) external {
+    function assertionDisputedCallback(bytes32 /* assertionId */) external view {
+        require(msg.sender == OO_V3, "UMAEvaluator: caller not OOv3"); // L-01 fix
         // Intentionally empty — DVM handles the dispute.
     }
 
@@ -294,6 +302,7 @@ contract UMAEvaluator is IEvaluator {
      * @param to Recipient address for the refunded USDC.
      */
     function withdrawBond(address to) external {
+        require(to != address(0), "UMAEvaluator: zero recipient"); // L-02 fix
         uint256 amount = bondRefunds[msg.sender];
         require(amount > 0, "UMAEvaluator: no bond to withdraw");
         bondRefunds[msg.sender] = 0; // zero before transfer (CEI)
@@ -311,6 +320,7 @@ contract UMAEvaluator is IEvaluator {
         uint256 tmp = v; uint256 digits;
         while (tmp != 0) { digits++; tmp /= 10; }
         bytes memory buf = new bytes(digits);
+        // forge-lint: disable-next-line(unsafe-typecast) — v % 10 is 0-9, 48+x fits uint8
         while (v != 0) { digits--; buf[digits] = bytes1(uint8(48 + v % 10)); v /= 10; }
         return string(buf);
     }
