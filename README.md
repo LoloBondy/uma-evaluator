@@ -1,6 +1,7 @@
 # UMAEvaluator
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![GitHub](https://img.shields.io/badge/GitHub-uma--evaluator-181717?logo=github)](https://github.com/LoloBondy/uma-evaluator)
 
 A decentralised **ERC-8183** dispute evaluator for AI agent commerce on Base, powered by the [UMA OptimisticOracleV3](https://docs.uma.xyz/developers/optimistic-oracle-v3/getting-started).
 
@@ -31,7 +32,7 @@ AI agent commerce requires trustless, permissionless arbitration for off-chain d
 | `_ooV3`        | UMA OptimisticOracleV3                                                  | `0x88Ad27C41AD06f01153E7Cd9b10cBEdF4616f4d6` | `0xFd9e2642a170aDD10F53Ee14a93FcF2F31924944` |
 | `_usdc`        | USDC token (6 decimals)                                                 | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` | `0x036CbD53842c5426634e7929541eC2318f3dCF7e` |
 | `_feeCollector`| Receives the 0.05 % platform fee on each resolved job                   | Your address                                 | Your address                                 |
-| `_liveness`    | UMA challenge window in seconds (min 3 600; recommended 7 200 on L2)   | `7200`                                       | `7200`                                       |
+| `_liveness`    | UMA challenge window in seconds (min 3 600; use 86 400 on mainnet for real-value jobs) | `86400`                           | `7200`                                       |
 
 ---
 
